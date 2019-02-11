@@ -1,91 +1,187 @@
-// Add library includes here
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_ADXL345_U.h>
 
-// Fin adjustment step size
-static float FIN_ADJ_STEP = 1.0;
+/* Assign a unique ID to this sensor at the same time */
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
-static int MOTOR_CW_PIN = 1;
-static int MOTOR_CCW_PIN = 1;
-static int STATUS_PIN = 13;
-static int INPUT_PIN = 1;
+/* Duration, in ms, it takes to deploy or retract the fins. */
+static int FIN_EXTEND_DURATION = 400;
+/* Vertical acceleration, in m/s^2, above which to consider the motor to be ignited. */
+static float MOTOR_IGNITE_ACCEL = 30.0;
+/* Vertical acceleration, in m/s^2, below which to consider the motor to be burned out. */
+static float MOTOR_BURNOUT_ACCEL = 0.0;
+/* Delay after burnout, in ms, to wait to deploy the fins. */
+static int DEPLOYMENT_DELAY = 3000;
+/* Net acceleration, in m/s^2, above which to consider the rocket to be at apogee. */
+static float APOGEE_ACCEL = 0.0;
 
-static float TARGET_APOGEE;
+static int BUZZER_PIN = 12;
+static int MOTOR_L_PIN = 11;
+static int MOTOR_W_PIN = 10;
+static int LED_PIN = 13;
 
-// Int representing different stages of flight
-int flightStatus = 0;
+/* Are the fins deployed? */
+bool finsDeployed = false;
 
-float currentFinDeployment = 0;
+/* What stage is the flight in?
+  Values:
+    0: Has not launched yet.
+    1: Has launched, motor is burning.
+    2: Motor has burnt out, coasting to apogee.
+    3: Apogee reached, falling.
+    <Further values not included because program ends at apogee.>
+ */
+int flightStage = 0;
 
-struct flightData {
-    float altitude;
-    float velocity;
-    float acceleration;
+// This is used as a failsafe timer
+int loopsSinceLaunch = 0;
+int loopsSinceDeployment = 0;
+
+void setup(void) 
+{
+  /* Initialize the output pins */
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(MOTOR_L_PIN, OUTPUT);
+  pinMode(MOTOR_W_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  signalPower();
+
+#ifndef ESP8266
+  while (!Serial); // for Leonardo/Micro/Zero
+#endif
+  Serial.begin(9600);
+
+  Serial.println("asdfasdfsdafasdfsdfasdf");
+  
+  /* Initialise the sensor */
+  if(!accel.begin())
+  {
+    Serial.print("xyz");
+  }
+  Serial.println("test");
+  accel.setRange(ADXL345_RANGE_16_G);
+
+  flexFins();
+
+  signalStartupSuccess();
 }
 
-struct flightData getAltimeterData(void) {
-    struct flightData altimeterData;
-    // Read data from altimeter
-    return altimeterData;
+float calcVectLen(float x, float y, float z)
+{
+  return sqrt(x*x + y*y + z*z);
 }
 
-void adjustFins(float amount) {
-    // Adjust the fins (amount can be either degrees or distance depending on
-    // how we code it). Negative values retract, positive extend. Check for max
-    // or min extension.
-    // Update currentFinDeployment
+void deployFinsIfUndeployed(void)
+{
+  if(!finsDeployed) {
+    startMotor(true);
+    delay(FIN_EXTEND_DURATION);
+    stopMotor();
+    finsDeployed = true;
+  }
 }
 
-void fullyRetractFins(void) {
-    // Fully retract
+void retractFinsIfDeployed(void)
+{
+   if(finsDeployed) {
+    startMotor(false);
+    delay(FIN_EXTEND_DURATION);
+    stopMotor();
+    finsDeployed = false;
+  }
 }
 
-float getExpectedApogee(float altitude, float velocity, float acceleration) {
-    // Apogee calculations here
-    return apogee;
+void signalStartupSuccess(void)
+{
+  for(int i = 0; i <= 4; i++){
+    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(LED_PIN, HIGH);
+    delay(250*i);
+    digitalWrite(BUZZER_PIN, LOW);
+    digitalWrite(LED_PIN, LOW);
+    delay(250*i);
+  }
 }
 
-int updateFlightStatus(void) {
-    // Check and update flight status here
-    return flightStatus;
+void signalPower(void)
+{
+  for(int i = 0; i <= 3; i++){
+    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(BUZZER_PIN, LOW);
+    digitalWrite(LED_PIN, LOW);
+    delay(200);
+  }
 }
 
-void setup() {
-    // Initialize comms here
-
-    // Initialize pins here
-
-    // Motor test
-    // Data test
-
-    // LED / buzzer startup codes
+void flexFins(void)
+{
+  if(finsDeployed) {
+    return;
+  }
+  startMotor(true);
+  delay(FIN_EXTEND_DURATION / 2);
+  stopMotor();
+  delay(FIN_EXTEND_DURATION);
+  startMotor(false);
+  delay(FIN_EXTEND_DURATION / 2);
+  stopMotor();
 }
 
-void loop() {
-    status = updateFlightStatus();
-    switch status {
-        case 0:
-            // On launchpad: keep beeping
-            break;
-        case 1:
-            // During motor burn: do nothing
-            break;
-        case 2:
-            // After motor burn
-            // Could probably break this into another function
-            struct flightData currentData = getAltimeterData();
-            float apogee = getExpectedApogee(
-                currentData.altitude, 
-                currentData.velocity, 
-                currentData.acceleration);
-            if(apogee < TARGET_APOGEE) {
-                adjustFins(-FIN_ADJ_STEP)
-            } else if(apogee > TARGET_APOGEE) {
-                adjustFins(FIN_ADJ_STEP)
-            }
-            break;
-        case 3:
-            // After apogee
-            fullyRetractFins();
-            break;
-    }
-    delay(500);
+void stopMotor(void) {
+  digitalWrite(MOTOR_L_PIN, HIGH);
+  digitalWrite(MOTOR_W_PIN, HIGH);
+}
+
+void startMotor(bool forward) {
+  if (!forward) {
+    digitalWrite(MOTOR_W_PIN, LOW);
+    digitalWrite(MOTOR_L_PIN, HIGH);
+  } else {
+    digitalWrite(MOTOR_W_PIN, HIGH);
+    digitalWrite(MOTOR_L_PIN, LOW);
+  }
+}
+
+void loop(void) 
+{
+  sensors_event_t event;
+  accel.getEvent(&event);
+
+  float verticalAccel = -1.0*event.acceleration.y;
+
+  Serial.println(flightStage);
+
+  switch(flightStage) {
+    case 0:
+      // Hasn't launched yetx
+      if(verticalAccel >= MOTOR_IGNITE_ACCEL) {
+        flightStage++;
+      }
+      break;
+    case 1:
+      // Has launched, motor is burning
+      loopsSinceLaunch++;
+      if(verticalAccel <= MOTOR_BURNOUT_ACCEL || loopsSinceLaunch > 16) {
+        flightStage++;
+        delay(DEPLOYMENT_DELAY);
+      }
+      break;
+    case 2:
+      // Motor has burnt out; is coasting to apogee
+      deployFinsIfUndeployed();
+      loopsSinceDeployment++;
+      if(loopsSinceDeployment > 60 && verticalAccel >= APOGEE_ACCEL || loopsSinceDeployment > 120) {
+        flightStage++;
+      }
+      break;
+    case 3:
+      retractFinsIfDeployed();
+      while(true);
+      break;
+  }
+
+  delay(250);
 }
