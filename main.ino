@@ -52,18 +52,17 @@ void setup(void)
 #endif
   Serial.begin(9600);
 
-  Serial.println("asdfasdfsdafasdfsdfasdf");
+  Serial.println("Beginning program.");
   
   /* Initialise the sensor */
   if(!accel.begin())
   {
-    Serial.print("xyz");
+    Serial.print("Failed to initialize altimeter!");
   }
-  Serial.println("test");
+
+  Serial.println("Beginning startup sequence.");
   accel.setRange(ADXL345_RANGE_16_G);
-
   flexFins();
-
   signalStartupSuccess();
 }
 
@@ -156,7 +155,7 @@ void loop(void)
 
   switch(flightStage) {
     case 0:
-      // Hasn't launched yetx
+      // Hasn't launched yet
       if(verticalAccel >= MOTOR_IGNITE_ACCEL) {
         flightStage++;
       }
