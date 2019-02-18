@@ -8,5 +8,5 @@ before_install:
   - sudo mv arduino-1.6.5 /usr/local/share/arduino
   - sudo ln -s /usr/local/share/arduino/arduino /usr/local/bin/arduino
 install:
-  - arduino --install-library "Adafruit ADXL345","Adafruit Sensor"
+  - arduino --install-library "Adafruit Sensor","Adafruit ADXL345 U"
   - arduino --verify --board arduino:avr:uno $PWD/main.ino
