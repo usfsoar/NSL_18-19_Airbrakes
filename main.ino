@@ -2,18 +2,21 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
 
-/* Assign a unique ID to this sensor while initializing it.*/
+/** @brief Assign a unique ID to this sensor while initializing it.*/
 Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
-/* Duration, in ms, it takes to deploy or retract the fins. */
+/** @brief Duration, in ms, it takes to deploy or retract the fins. */
 static int FIN_EXTEND_DURATION = 400;
-/* Vertical acceleration, in m/s^2, above which to consider the motor to be ignited. */
+/** @brief Vertical acceleration, in m/s^2, above which to consider the motor to
+ * be ignited. */
 static float MOTOR_IGNITE_ACCEL = 30.0;
-/* Vertical acceleration, in m/s^2, below which to consider the motor to be burned out. */
+/** @brief Vertical acceleration, in m/s^2, below which to consider the motor to
+ * be burned out. */
 static float MOTOR_BURNOUT_ACCEL = 0.0;
-/* Delay after burnout, in ms, to wait to deploy the fins. */
+/** @brief Delay after burnout, in ms, to wait to deploy the fins. */
 static int DEPLOYMENT_DELAY = 3000;
-/* Net acceleration, in m/s^2, above which to consider the rocket to be at apogee. */
+/** @brief Net acceleration, in m/s^2, above which to consider the rocket to be
+ * at apogee. */
 static float APOGEE_ACCEL = 0.0;
 
 static int BUZZER_PIN = 12;
@@ -24,7 +27,7 @@ static int LED_PIN = 13;
 /* Are the fins deployed? */
 bool finsDeployed = false;
 
-/* What stage is the flight in?
+/** @brief What stage is the flight in?
   Values:
     0: Has not launched yet.
     1: Has launched, motor is burning.
@@ -38,6 +41,9 @@ int flightStage = 0;
 int loopsSinceLaunch = 0;
 int loopsSinceDeployment = 0;
 
+/**
+ * @brief Automatically runs on startup.
+ */
 void setup(void) 
 {
   /* Initialize the output pins */
@@ -68,11 +74,23 @@ void setup(void)
   signalStartupSuccess();
 }
 
+/**
+ * @brief Calculate the length of a vector starting at the origin and ending at
+ * the given coordinates.
+ * 
+ * @param x X-coordinate of the end of the vector.
+ * @param y Y-coordinate of the end of the vector.
+ * @param z Z-coordinate of the end of the vector.
+ * @return float Distance (calculated with Pythagorean Theorem in 3D).
+ */
 float calcVectLen(float x, float y, float z)
 {
   return sqrt(x*x + y*y + z*z);
 }
 
+/**
+ * @brief If fins not deployed, deploys fins. Else, does nothing.
+ */
 void deployFinsIfUndeployed(void)
 {
   if(!finsDeployed) {
@@ -83,6 +101,9 @@ void deployFinsIfUndeployed(void)
   }
 }
 
+/**
+ * @brief If fins deployed, retracts fins. Else, does nothing.
+ */
 void retractFinsIfDeployed(void)
 {
    if(finsDeployed) {
@@ -93,6 +114,12 @@ void retractFinsIfDeployed(void)
   }
 }
 
+/**
+ * @brief Show output feedback for succesful startup sequence.
+ * 
+ * Flashes LED and sounds buzzer 4 times, with linearly increasing flash length
+ * and delay between.
+ */
 void signalStartupSuccess(void)
 {
   for(int i = 0; i <= 4; i++){
@@ -105,6 +132,11 @@ void signalStartupSuccess(void)
   }
 }
 
+/**
+ * @brief Show output feedback for inital power-on.
+ * 
+ * Flashes LED and sounds buzzer 3 times.
+ */
 void signalPower(void)
 {
   for(int i = 0; i <= 3; i++){
@@ -117,6 +149,11 @@ void signalPower(void)
   }
 }
 
+/**
+ * @brief Show output feedback proving fin control is working.
+ * 
+ * Extends fins halfway, then retracts fins halfway.
+ */
 void flexFins(void)
 {
   if(finsDeployed) {
@@ -131,11 +168,20 @@ void flexFins(void)
   stopMotor();
 }
 
+/**
+ * @brief Stop motor entirely.
+ */
 void stopMotor(void) {
   digitalWrite(MOTOR_L_PIN, HIGH);
   digitalWrite(MOTOR_W_PIN, HIGH);
 }
 
+/**
+ * @brief Start the motor in the direction requested.
+ * 
+ * @param forward If true, will turn on in deployment direction. Otherwise, will
+ *   turn on in the retraction direction.
+ */
 void startMotor(bool forward) {
   if (!forward) {
     digitalWrite(MOTOR_W_PIN, LOW);
@@ -146,6 +192,9 @@ void startMotor(bool forward) {
   }
 }
 
+/**
+ * @brief Automatically loops while Arduino is running.
+ */
 void loop(void) 
 {
   sensors_event_t event;
