@@ -61,9 +61,9 @@ void setup(void)
     delay(1000);
     Serial.println("Retrying...");
   }
-
-  Serial.println("Beginning startup sequence.");
   accel.setRange(ADXL345_RANGE_16_G);
+
+  Serial.println("System initalized. Beginning startup sequence.");
   flexFins();
   signalStartupSuccess();
 }
